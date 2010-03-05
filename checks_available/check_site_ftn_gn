@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Affectation des variables et fonction communes
+. /etc/profile
+. $GRANDMAHOME/cfg/grandma.cfg
+
+# Creation des repertoires temporaires et des timestamps
+$GRANDMAHOME/lib/creation_rep_travail.sh ; if [ $? -ne 0 ]; then UNKNOWN "KO : Probleme lors de la creation des repertoires temporaires"; fi
+
+# Bridage des scenarios en cas de surcharge de la sonde
+$GRANDMAHOME/lib/controle_surcharge.sh ; if [ $? -ne 0 ]; then UNKNOWN "KO : La sonde $nomsonde est surchargee, l'execution des scenarios est bridee" ; fi
+
+# Controle des plages horaires et jours d'execution
+$GRANDMAHOME/lib/verif_heure_exception.sh FTN $1 ; if [ $? -eq 1 ]; then OKOUT "OK : pas de contrôle a faire sur cette periode"; fi
+
+# Recuperation des mots de passe
+source $GRANDMAHOME/lib/gestion_motdepasse.sh 123456 ; if [ $? -eq 3 ]; then UNKNOWN "KO : Probleme lors de la recuperation des mots de passe"; fi
+
+# Test de la page d'accueil
+$curl $curl_opts "http://www.fortuneo.fr/" > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "Bourse avec votre courtier en ligne Fortuneo"
+if [ "$count" -ne 2 ];then FATAL "KO : Pas de page d'accueil"; fi
+
+# Test de la chaine Appel gratuit depuis un poste fixe
+$curl $curl_opts "http://www.fortuneo.fr/fr/bourse/bienvenue.jsp" > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "Appel gratuit depuis un poste fixe"
+if [ "$count" -ne 1 ];then FATAL "KO : Pas de chaine Appel gratuit depuis un poste fixe"; fi
+
+# on clic sur Acces client
+$curl $curl_opts "https://www.fortuneo.fr/fr/identification.jsp" > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "Identifiant"
+if [ "$count" -ne 2 ];then FATAL "KO : Les 2 chaines -Identifiant- n'apparaissent pas"; fi
+
+# Identification avec 99000H :
+$curl $curl_opts "https://www.fortuneo.fr/checkacces" -d "locale=fr&login=123456&passwd=$motdepasse" -c $tmpdir/cookies -b $tmpdir/cookies 1> $tmpdir/page.html 2>&1
+TESTRET ; COUNT "014826997901 (Compte titres COMPTE TEST INFORMATIQUE)"
+if [ "$count" -ne 1 ];then FATAL "KO : Impossible d'afficher la page de synthese des comptes 1"; fi
+$curl $curl_opts "https://www.fortuneo.fr/fr/mes-comptes/synthese-tous-comptes.jsp" -b $tmpdir/cookies > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "SYNTHESE GLOBALE DE VOS COMPTES"
+if [ "$count" -ne 1 ];then FATAL "KO : Impossible d'afficher la page de synthese des comptes 2"; fi
+
+# on clic sur option => portefeuille intraday, et teste de la chaine Valorisation de votre compte
+$curl $curl_opts "https://www.fortuneo.fr/fr/mes-comptes/compte-titres-pea/situation/portefeuille-temps-reel.jsp?COMPTE_ACTIF=TE41542551&listDyn=%2Ffr%2Fmes-comptes%2Fcompte-titres-pea%2Fsituation%2Fportefeuille-temps-reel.jsp" -b $tmpdir/cookies > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "Valorisation de votre compte"
+if [ "$count" -ne 2 ];then FATAL "KO : Impossible d'afficher la chaine -Valorisation de votre compte- sur portefeuille intraday"; fi
+
+# on va sur la page passage d'ordre
+$curl $curl_opts "https://www.fortuneo.fr/fr/mes-comptes/ordre.jsp?cdSens=A&cdReferentiel=XPARFR0000120628" -b $tmpdir/cookies > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "AXA&nbsp;FR0000120628"
+if [ "$count" -ne 1 ];then FATAL "KO : Impossible d'afficher la page de passage d'ordre sur AXA" ; fi
+
+# on affiche le iframe contenant la saisie d'ordres
+$curl $curl_opts "https://www.fortuneo.fr/fr/mes-comptes/saisie-ordre.jsp?cdReferentiel=XPARFR0000120628&cdSens=A&indicateurAchatInterdit=&indicateurVenteInterdite=&codePlaceMIC=" -b $tmpdir/cookies > $tmpdir/page.html 2>&1
+TESTRET ; COUNT "Place&#160;:&#160;</td>"
+if [ "$count" -ne 1 ];then FATAL "KO : Impossible d'afficher l'ecran de selection des criteres de saisie d'ordres sur AXA" ; fi
+
+OK "OK : Scenario FTN Generaliste nominal"

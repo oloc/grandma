@@ -1,0 +1,170 @@
+#!/bin/bash
+
+Copyright 2002,2010 - Antoine Theuret
+
+This file is part of Grandma.
+
+Grandma is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+Grandma is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Grandma.  If not, see <http://www.gnu.org/licenses/>.
+
+. /etc/profile
+. $GRANDMAHOME/cfg/grandma.cfg
+
+PID=$$
+PIDFILE=/var/run/$NOMSERVICE.pid
+
+# Verification du lancement de la commande sous root 
+
+if [ $UID -ne 0 ]
+then
+	echo "Le demon Grandma doit etre lance sous root"
+	exit 99
+fi
+
+#################  Corps du demon ######################
+launcher() {
+# Code du demon
+
+# On cree la directory temporaire ou on genere les run
+rm -rf $RUN_DIR 1> /dev/null 2>&1
+mkdir $RUN_DIR
+
+# On calcule le nombre de scenars par run
+launch=$(( 60 / $RUN_WAIT))
+
+if [ $(($launch * $RUN_WAIT)) -ne 60 ]
+then
+    echo "Valeur du wait incorrecte, choisir un diviseur entier de 60"
+    exit 99
+fi
+
+# controle de la presence d'au moins 1 scenario
+nb="`ls $GRANDMAHOME/checks_enabled/*check_site_* 2>/dev/null | wc -l`"
+if [ "$nb" -eq 0 ]
+then
+    echo "Aucun scenarii n'est actif sur la sonde ... Le demon se lance en mode dormant ..."
+fi
+
+# creation des fichiers run a vide
+let run_nb=1
+while [ $run_nb -le $launch ]
+   do echo "#Execution run numero $run_nb" > $RUN_DIR/run_$run_nb
+      let run_nb=run_nb+1
+done
+
+# preparation des fichiers de run
+let run_nb=1
+for scenar in `ls $GRANDMAHOME/checks_enabled/*check_site_* 2>/dev/null`
+do echo "su grandma -c $scenar 1> /dev/null 2>&1 &" >> $RUN_DIR/run_$run_nb
+   let run_nb=run_nb+1
+   if [ $run_nb -gt $launch ]
+   then let run_nb=1
+   fi
+done
+
+# Concatenation des fichiers run
+let run_nb=1
+echo "" > /tmp/grandma
+while [ $run_nb -le $launch ]
+   do cat $RUN_DIR/run_$run_nb >> /tmp/grandma
+      echo "sleep $RUN_WAIT" >> /tmp/grandma
+      let run_nb=run_nb+1
+done
+rm -rf $RUN_DIR
+
+chmod u+x /tmp/$NOMSERVICE
+}
+
+demon () {
+	launcher
+	/tmp/$NOMSERVICE &
+	sleep 60
+}
+
+
+###########  Partie generale - Ne pas modifier ############
+
+getpid() {
+        [ -e "$PIDFILE" ] && cat $PIDFILE
+}
+
+start() {
+        if [ "$OLDPID" == "" ] ; then
+                while /bin/true ; do
+                        demon
+                done
+        fi
+}
+
+stop() {
+        PID="$(getpid)"
+        if [ "$PID" != "" ] ; then
+                kill -TERM $PID
+                rm -f $PIDFILE
+		echo -n "Arret de $NOMSERVICE : [" ; echo -en '\E[49;32m'"\033[1mOK\033[0m" ; tput sgr0 ; echo "]"
+        else
+		echo -n "Arret de $NOMSERVICE : [" ; echo -en '\E[49;31m'"\033[1mFATAL : DEJA ARRETE\033[0m" ; tput sgr0 ; echo "]"
+        fi
+}
+
+status() {
+        PID="$(getpid)"
+        if [ "$PID" != "" ] ; then
+                echo "$NOMSERVICE OK : $PID"
+        else
+                echo "$NOMSERVICE KO"
+        fi
+}
+
+usage(){
+        echo "Usage : $0 <start|stop|restart|status>"
+}
+
+case "$1" in
+        "start")
+                disown $PID &>/dev/null
+                OLDPID="$(getpid)"
+                start &
+                PID=$!
+                if [ "$OLDPID" == "" ] ; then
+                        echo -n "Lancement de $NOMSERVICE : [" ; echo -en '\E[49;32m'"\033[1mOK\033[0m" ; tput sgr0 ; echo "]"
+                        echo $PID > $PIDFILE
+                else
+			echo -n "Lancement de $NOMSERVICE : [" ; echo -en '\E[49;31m'"\033[1mFATAL : DEJA LANCE\033[0m" ; tput sgr0 ; echo "]"
+                fi
+                ;;
+        "stop")
+                stop
+                
+                ;;
+        "restart")
+                stop
+                PID=$$
+                disown $PID &>/dev/null
+                start &
+                PID=$!
+                echo -n "Lancement de $NOMSERVICE : [" ; echo -en '\E[49;32m'"\033[1mOK\033[0m" ; tput sgr0 ; echo "]"
+                echo $PID > $PIDFILE
+                ;;
+        "status")
+                status
+                ;;
+        "debug")
+                set +x
+                start
+                ;;
+        *)
+                usage
+                ;;
+esac
+
