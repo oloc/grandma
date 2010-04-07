@@ -65,7 +65,7 @@ done
 # preparation des fichiers de run
 let run_nb=1
 for scenar in `ls $GRANDMAHOME/checks_enabled/*check_site_* 2>/dev/null`
-do echo "su grandma -c $scenar 1> /dev/null 2>&1 &" >> $RUN_DIR/run_$run_nb
+do echo "su $GRANDMAUSER -c $scenar 1> /dev/null 2>&1 &" >> $RUN_DIR/run_$run_nb
    let run_nb=run_nb+1
    if [ $run_nb -gt $launch ]
    then let run_nb=1
