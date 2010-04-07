@@ -18,8 +18,6 @@
 #along with Grandma.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-export LANG=fr_FR@euro
-
 if [ $# -lt 1 ]
 then
 	echo "Probleme, pas de parametre passe - Syntaxe : $0 TRYPTIQUEB2B"
@@ -60,9 +58,7 @@ then
 fi
 
 heure=`date +%H%M`
-#heure="$2"
-jour=`date '+%a'`
-#jour="$3"
+jour=`date '+%w'`
 
 # scenario suspendu 2 fois = Bascule CICZ en mode nuit puis en mode jour
 if [ "$1" = "FTN" ] && [ $heure -ge 1958 ] && [ $heure -le 2015 ]
@@ -70,37 +66,37 @@ then
 	exit 1
 fi
 
-if [ "$jour" = "lun" ]
+if [ $jour -eq 1 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $2}'`
 	fin=`echo $valeurs | awk -F : '{print $3}'`
 fi
-if [ "$jour" = "mar" ]
+if [ $jour -eq 2 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $4}'`
 	fin=`echo $valeurs | awk -F : '{print $5}'`
 fi
-if [ "$jour" = "mer" ]
+if [ $jour -eq 3 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $6}'`
 	fin=`echo $valeurs | awk -F : '{print $7}'`
 fi
-if [ "$jour" = "jeu" ]
+if [ $jour -eq 4 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $8}'`
 	fin=`echo $valeurs | awk -F : '{print $9}'`
 fi
-if [ "$jour" = "ven" ]
+if [ $jour -eq 5 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $10}'`
 	fin=`echo $valeurs | awk -F : '{print $11}'`
 fi
-if [ "$jour" = "sam" ]
+if [ $jour -eq 6 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $12}'`
 	fin=`echo $valeurs | awk -F : '{print $13}'`
 fi
-if [ "$jour" = "dim" ]
+if [ $jour -eq 0 ]
 then
 	debut=`echo $valeurs | awk -F : '{print $14}'`
 	fin=`echo $valeurs | awk -F : '{print $15}'`
